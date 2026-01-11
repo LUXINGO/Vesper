@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Vesper Jobs</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+    margin:0;
+    font-family:Arial, sans-serif;
+    background:#f3f7ff;
+}
+
+/* General page */
+.page {
+    display:none;
+    padding:20px;
+}
+.show {
+    display:block;
+}
+
+/* Container */
+.container {
+    max-width:500px;
+    margin:auto;
+    background:white;
+    padding:20px;
+    border-radius:10px;
+    box-shadow:0 0 10px rgba(0,0,0,0.1);
+}
+
+/* Inputs */
+input, select {
+    width:100%;
+    padding:12px;
+    margin-top:10px;
+    border:1px solid #ccc;
+    border-radius:6px;
+}
+
+/* Buttons */
+button {
+    width:100%;
+    padding:12px;
+    background:#0056ff;
+    color:white;
+    border:none;
+    border-radius:6px;
+    margin-top:15px;
+    font-size:16px;
+}
+button.red { background:#d00000; }
+
+/* Hide admin initially */
+.user-card {
+    padding:10px;
+    border:1px solid #ccc;
+    margin-top:10px;
+    border-radius:8px;
+}
+.job-card, .course-card {
+    padding:10px;
+    background:white;
+    border:1px solid #ccc;
+    margin:8px 0;
+    border-radius:8px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- --------------------------- -->
+<!-- LOGIN PAGE -->
+<!-- --------------------------- -->
+<div id="loginPage" class="page show">
+<div class="container">
+<h2>Login</h2>
+<input id="loginEmail" placeholder="Email">
+<input id="loginPassword" type="password" placeholder="Password">
+<button onclick="loginUser()">Login</button>
+<button onclick="goTo('signupPage')">Create Account</button>
+<button onclick="goTo('adminLoginPage')">Admin Login</button>
+</div>
+</div>
+
+<!-- --------------------------- -->
+<!-- SIGNUP PAGE -->
+<!-- --------------------------- -->
+<div id="signupPage" class="page">
+<div class="container">
+<h2>Signup</h2>
+
+<input id="name" placeholder="Full Name">
+<input id="email" placeholder="Email">
+<input id="password" type="password" placeholder="Password">
+<input id="dob" type="date">
+<select id="country">
+<option>Nigeria</option>
+<option>Ghana</option>
+<option>Kenya</option>
+<option>South Africa</option>
+</select>
+<input id="occupation" placeholder="Occupation">
+
+<button onclick="signupUser()">Register</button>
+<button onclick="goTo('loginPage')">Back</button>
+</div>
+</div>
+
+<!-- --------------------------- -->
+<!-- PRICING PAGE -->
+<!-- --------------------------- -->
+<div id="pricingPage" class="page">
+<div class="container">
+<h2>Select a Plan</h2>
+
+<button onclick="choosePlan(20000)">₦20,000 → 2 Months</button>
+<button onclick="choosePlan(30000)">₦30,000 → 3 Months</button>
+<button onclick="choosePlan(40000)">₦40,000 → 4 Months</button>
+
+<button onclick="goTo('loginPage')">Back</button>
+</div>
+</div>
+
+<!-- --------------------------- -->
+<!-- PAYMENT PAGE -->
+<!-- --------------------------- -->
+<div id="paymentPage" class="page">
+<div class="container">
+<h2>Payment Instructions</h2>
+
+<p><b>Plan Amount:</b> ₦<span id="chosenAmount"></span></p>
+<p><b>Duration:</b> <span id="chosenDuration"></span></p>
+
+<button onclick="sendToWhatsapp()">Request WhatsApp Invoice</button>
+
+<h3>Upload Payment Screenshot</h3>
+<input type="file" id="receiptFile">
+
+<button onclick="uploadReceipt()">Submit Receipt</button>
+</div>
+</div>
+
+<!-- --------------------------- -->
+<!-- WAITING APPROVAL -->
+<!-- --------------------------- -->
+<div id="waitingApproval" class="page">
+<div class="container">
+<h2>Application Submitted</h2>
+<p>Your image is being verified.</p>
+<p>Please wait...</p>
+
+<button onclick="checkAccess()">Refresh</button>
+</div>
+</div>
+
+<!-- --------------------------- -->
+<!-- ADMIN LOGIN -->
+<!-- --------------------------- -->
+<div id="adminLoginPage" class="page">
+<div class="container">
+<h2>Admin Login</h2>
+
+<input id="adminEmail" placeholder="Email">
+<input id="adminPassword" type="password" placeholder="Password">
+
+<button onclick="adminLogin()">Login</button>
+<button onclick="goTo('loginPage')">Back</button>
+</div>
+</div>
+
+<!-- --------------------------- -->
+<!-- ADMIN DASHBOARD -->
+<!-- --------------------------- -->
+<div id="adminPanel" class="page">
+<div class="container">
+<h2>Admin Dashboard</h2>
+
+<button onclick="loadAdminUsers()">Load Users</button>
+
+<div id="adminUserList"></div>
+
+<button class="red" onclick="goTo('loginPage')">Logout</button>
+</div>
+</div>
+
+<!-- --------------------------- -->
+<!-- USER DASHBOARD -->
+<!-- --------------------------- -->
+<div id="fullDashboard" class="page">
+<div class="container">
+<h2>Welcome to Vesper Jobs</h2>
+
+<h3>Your UID:</h3>
+<p id="showUID"></p>
+
+<h3>Upload Your CV</h3>
+<input type="file" id="cvFile">
+<button onclick="uploadCV()">Upload CV</button>
+
+<h3>Available Jobs</h3>
+<div id="jobList"></div>
+
+<h3>Available Courses</h3>
+<div id="courseList"></div>
+
+<button class="red" onclick="logoutUser()">Logout</button>
+</div>
+</div>
+
+<!-- --------------------------- -->
+<!-- FIREBASE + APP LOGIC -->
+<!-- --------------------------- -->
+<script type="module">
+
+/* -----------------------------
+   FIREBASE INITIALIZATION
+----------------------------- */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+import { 
+    getAuth, createUserWithEmailAndPassword,
+    signInWithEmailAndPassword 
+} from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
+
+import { 
+    getFirestore, doc, setDoc, getDoc, updateDoc, 
+    getDocs, collection 
+} from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+
+import { 
+    getStorage, ref, uploadBytes, getDownloadURL 
+} from "https://www.gstatic.com/firebasejs/9.6.10/firebase-storage.js";
+
+/* Your Config */
+const firebaseConfig = {
+  apiKey: "AIzaSyCqJycHmHPX4Y8X-5tsfeFR-O9ghd7HarU",
+  authDomain: "vesper-jobs.firebaseapp.com",
+  projectId: "vesper-jobs",
+  storageBucket: "vesper-jobs.firebasestorage.app",
+  messagingSenderId: "730750860956",
+  appId: "1:730750860956:web:ca339714c8709df478b759",
+  measurementId: "G-GRQQ1KW7ZC"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth();
+const db = getFirestore();
+const storage = getStorage();
+
+
+/* -----------------------------
+   SCREEN SWITCHING
+----------------------------- */
+window.goTo = function(page){
+    document.querySelectorAll(".page").forEach(p=>p.classList.remove("show"));
+    document.getElementById(page).classList.add("show");
+};
+
+
+/* -----------------------------
+   SIGNUP
+----------------------------- */
+window.signupUser = async function () {
+    let name = document.getElementById("name").value;
+    let email = document.getElementById("email").value;
+    let pass = document.getElementById("password").value;
+    let dob = document.getElementById("dob").value;
+    let country = document.getElementById("country").value;
+    let occupation = document.getElementById("occupation").value;
+
+    let res = await createUserWithEmailAndPassword(auth, email, pass);
+    let uid = res.user.uid;
+
+    await setDoc(doc(db, "users", uid), {
+        name, email, dob, country, occupation,
+        status: "not_paid"
+    });
+
+    localStorage.setItem("vesperUser", JSON.stringify({uid}));
+
+    goTo("pricingPage");
+};
+
+
+/* -----------------------------
+   LOGIN
+----------------------------- */
+window.loginUser = async function(){
+    let email = document.getElementById("loginEmail").value;
+    let pass = document.getElementById("loginPassword").value;
+
+    let res = await signInWithEmailAndPassword(auth, email, pass);
+
+    localStorage.setItem("vesperUser", JSON.stringify({uid:res.user.uid}));
+
+    checkAccess();
+};
+
+
+/* -----------------------------
+   CHOOSE PLAN
+----------------------------- */
+window.choosePlan = function(amount){
+    let durationMap = {
+        20000:"2 Months",
+        30000:"3 Months",
+        40000:"4 Months"
+    };
+
+    document.getElementById("chosenAmount").textContent = amount;
+    document.getElementById("chosenDuration").textContent = durationMap[amount];
+
+    goTo("paymentPage");
+};
+
+
+/* -----------------------------
+   WHATSAPP PAYMENT
+----------------------------- */
+window.sendToWhatsapp = function(){
+    window.open("https://api.whatsapp.com/send?phone=2349045302725","_blank");
+};
+
+
+/* -----------------------------
+   UPLOAD RECEIPT
+----------------------------- */
+window.uploadReceipt = async function(){
+    let file = document.getElementById("receiptFile").files[0];
+    if(!file){ alert("Select an image first"); return; }
+
+    let user = JSON.parse(localStorage.getItem("vesperUser"));
+    let uid = user.uid;
+
+    let r = ref(storage, "receipts/"+uid+".jpg");
+
+    await uploadBytes(r, file);
+    let url = await getDownloadURL(r);
+
+    await updateDoc(doc(db, "users", uid), {
+        receipt:url,
+        status:"pending"
+    });
+
+    alert("Receipt submitted. Wait while your image is being verified.");
+    goTo("waitingApproval");
+};
+
+
+/* -----------------------------
+   CHECK USER ACCESS
+----------------------------- */
+window.checkAccess = async function(){
+    let user = JSON.parse(localStorage.getItem("vesperUser"));
+    if(!user){ goTo("loginPage"); return; }
+
+    let snap = await getDoc(doc(db, "users", user.uid));
+
+    let data = snap.data();
+
+    if(data.status === "approved"){
+        document.getElementById("showUID").innerText = user.uid;
+
+        loadJobs();
+        loadCourses();
+
+        goTo("fullDashboard");
+    }
+    else if(data.status === "pending"){
+        goTo("waitingApproval");
+    }
+    else{
+        goTo("pricingPage");
+    }
+};
+
+
+/* -----------------------------
+   ADMIN LOGIN
+----------------------------- */
+window.adminLogin = function(){
+    let email = document.getElementById("adminEmail").value;
+    let pass = document.getElementById("adminPassword").value;
+
+    if(email==="admin@vesperio.com" && pass==="Vesper123"){
+        goTo("adminPanel");
+        loadAdminUsers();
+    }
+    else {
+        alert("Wrong admin credentials");
+    }
+};
+
+
+/* -----------------------------
+   LOAD USERS (ADMIN)
+----------------------------- */
+window.loadAdminUsers = async function(){
+    let box = document.getElementById("adminUserList");
+    box.innerHTML = "Loading...";
+
+    let snap = await getDocs(collection(db,"users"));
+
+    box.innerHTML = "";
+
+    snap.forEach(d=>{
+        let u = d.data();
+        box.innerHTML += `
+        <div class="user-card">
+            <h3>${u.name}</h3>
+            <p>Email: ${u.email}</p>
+            <p>Status: ${u.status}</p>
+            ${u.receipt ? `<img src="${u.receipt}" width="180">` : ""}
+            <button onclick="approveUser('${d.id}')">Approve</button>
+            <button onclick="declineUser('${d.id}')" class="red">Decline</button>
+        </div>`;
+    });
+};
+
+
+/* -----------------------------
+   ADMIN APPROVE
+----------------------------- */
+window.approveUser = async function(uid){
+    await updateDoc(doc(db,"users",uid), {status:"approved"});
+    alert("User approved");
+    loadAdminUsers();
+};
+
+
+/* -----------------------------
+   ADMIN DECLINE
+----------------------------- */
+window.declineUser = async function(uid){
+    await updateDoc(doc(db,"users",uid), {status:"declined"});
+    alert("User declined");
+    loadAdminUsers();
+};
+
+
+/* -----------------------------
+   LOAD JOB LISTINGS
+----------------------------- */
+window.loadJobs = async function(){
+    let box = document.getElementById("jobList");
+    box.innerHTML = "Loading jobs...";
+
+    let snap = await getDocs(collection(db,"jobs"));
+
+    box.innerHTML = "";
+    snap.forEach(d=>{
+        let j = d.data();
+        box.innerHTML += `
+        <div class="job-card">
+            <h3>${j.title}</h3>
+            <p>${j.desc}</p>
+        </div>`;
+    });
+};
+
+
+/* -----------------------------
+   LOAD COURSES
+----------------------------- */
+window.loadCourses = async function(){
+    let box = document.getElementById("courseList");
+    box.innerHTML = "Loading courses...";
+
+    let snap = await getDocs(collection(db,"courses"));
+
+    box.innerHTML = "";
+    snap.forEach(d=>{
+        let c = d.data();
+        box.innerHTML += `
+        <div class="course-card">
+            <h3>${c.title}</h3>
+            <p>${c.desc}</p>
+        </div>`;
+    });
+};
+
+
+/* -----------------------------
+   CV UPLOAD
+----------------------------- */
+window.uploadCV = async function(){
+    let file = document.getElementById("cvFile").files[0];
+    if(!file){ alert("Select a CV file"); return; }
+
+    let user = JSON.parse(localStorage.getItem("vesperUser"));
+    let uid = user.uid;
+
+    let r = ref(storage, "cv/"+uid+".pdf");
+
+    await uploadBytes(r, file);
+
+    alert("CV Uploaded");
+};
+
+
+/* -----------------------------
+   LOGOUT
+----------------------------- */
+window.logoutUser = function(){
+    localStorage.removeItem("vesperUser");
+    goTo("loginPage");
+};
+
+</script>
+
+</body>
+</html>
